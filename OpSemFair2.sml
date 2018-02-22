@@ -44,35 +44,35 @@ type lcontext = int list (* must-occur context: list of indices *)
 (* Printing out contexts that arise during forward chaining *)
 
 (* Prepare the context for printing in a very loose sense. *)
-(* Invariant: The head of "context" is always the i+1th element of the 
+(* Invariant: The head of "context" is always the i+1th element of the
  * original context. We're walking through both lists in tandem, noticing
  * when lcontext is telling us that we're at a mandatory item.
  *
- * It may not actually be the case that we need the lcontext at all - if 
+ * It may not actually be the case that we need the lcontext at all - if
  * we look at the overlap, it appears that all the information we need
- * comes from whether the context-thing is persistent, affine, linear, or 
+ * comes from whether the context-thing is persistent, affine, linear, or
  * gone. -rjs 2012-03-29 *)
 fun prepCtx (lcontext, i, context) =
 let
-   exception Invariant of string 
+   exception Invariant of string
    fun modalityStr Context.INT = "pers"
      | modalityStr Context.AFF = "aff"
      | modalityStr Context.LIN = "lin"
 
    (* What is this "stuff"? The rest of the file indicates they're
    some sort of oracle-y thing? -rjs 2012-03-29 *)
-   fun dataStr (asyncType: Syntax.asyncType, 
+   fun dataStr (asyncType: Syntax.asyncType,
                 stuff: (SignaturTable.lr list * SignaturTable.headType) list) =
-   let 
+   let
       (* XXX PERF we do this over and over, quadratic *)
       val context' = map #1 (tl context)
    in
       PrettyPrint.printTypeInCtx context' asyncType
    end
 
-   fun optionalItem (varname, data, NONE) = 
+   fun optionalItem (varname, data, NONE) =
           [] (* Item removed from ctx *)
-     | optionalItem (varname, data, SOME Context.LIN) = 
+     | optionalItem (varname, data, SOME Context.LIN) =
           (* If we are just reporting the intermediate contexts from
           forward chaining, it should be the case that everything in
           the context is required to be in the output context: the
@@ -90,38 +90,38 @@ let
           if varname = "" then [ dataStr data ^ " pers" ]
           else [ varname^":"^dataStr data ]
 
-   fun mandatoryItem (varname, data, NONE) = 
+   fun mandatoryItem (varname, data, NONE) =
           raise Invariant "mandatory item cannot also be removed from context!"
-     | mandatoryItem (varname, data, SOME Context.LIN) = 
+     | mandatoryItem (varname, data, SOME Context.LIN) =
           [ dataStr data^" lin" ]
-     | mandatoryItem (varname, data, SOME modality) = 
+     | mandatoryItem (varname, data, SOME modality) =
           (* Linear things are the only ones required to be in the context *)
           raise Invariant "Only linear things should be required!"
 in
    case (lcontext, context) of
-      ([], []) => [] 
+      ([], []) => []
     | ([], x :: xs) => optionalItem x @ prepCtx (lcontext, i+1, xs)
     | (j :: js, []) => raise Invariant "lcontext doesn't match context"
     | (j :: js, x :: xs) =>
          if j < i then raise Invariant "j < i should be impossible"
-         else if j = i then mandatoryItem x @ prepCtx (js, i+1, xs) 
+         else if j = i then mandatoryItem x @ prepCtx (js, i+1, xs)
          else optionalItem x @ prepCtx (lcontext, i+1, xs)
 end
 
-(* ctxToString : context -> (judgment list * name list) *) 
-and ctxToString (lcontext, context) = 
-let 
+(* ctxToString : context -> (judgment list * name list) *)
+and ctxToString (lcontext, context) =
+let
    (* XXX PERF - Pretty terrible (quadratic at least) -rjs 2012-03-29 *)
    fun rename [] = []
-     | rename ((item as (x, jdg, modality)) :: context) = 
+     | rename ((item as (x, jdg, modality)) :: context) =
        let
-          val context' = rename context 
+          val context' = rename context
           fun inlist z = List.exists (fn (y,_,_) => z = y) context'
-          fun loop x i = 
-             if inlist (x^"_"^Int.toString i) 
+          fun loop x i =
+             if inlist (x^"_"^Int.toString i)
              then loop x (i+1) else (x^"_"^Int.toString i)
           val x' = if x = "" then "x" else x
-       in 
+       in
           if inlist x' then (loop x' 1, jdg, modality) :: context'
           else (x', jdg, modality) :: context'
        end
@@ -134,9 +134,9 @@ end
 
 (* XXX *)
    fun layout n [] = print "(nothing)\n"
-     | layout n [ x ] = 
+     | layout n [ x ] =
           if n + size x > 80 then print ("\n   "^x^"\n") else print (x^"\n")
-     | layout n (x :: xs) = 
+     | layout n (x :: xs) =
           if n + size x + 2 > 80
           then (print ("\n   "^x^", "); layout (size x + 5) xs)
           else (print (x^", "); layout (n + size x + 2) xs)
@@ -243,12 +243,12 @@ fun traceLeftFocus (h, ty) =
 val totalCtxLength = ref 0
 val totalAvailLength = ref 0
 
-fun syncType2pat sty = 
+fun syncType2pat sty =
    case SyncType.prj sty of
       LExists (p, _, S2) => PDepTensor' (p, syncType2pat S2)
     | TOne => POne'
-    | TDown A => PDown' () 
-    | TAffi A => PAffi' () 
+    | TDown A => PDown' ()
+    | TAffi A => PAffi' ()
     | TBang A => PBang' NONE
 
 (* solve : (lcontext * context) * asyncType * (obj * context -> unit) -> unit *)
@@ -260,9 +260,9 @@ fun solve (ctx, ty, sc) =
 	; solve' (ctx, ty, sc) )
 and solve' (ctx, ty, sc) = case Util.typePrjAbbrev ty of
 	  TLPi (p, S, A) => solve (pBind (p, S) ctx, A,
-			(* The pattern p is a type pattern, which means that 
+			(* The pattern p is a type pattern, which means that
 			   it only names dependent variables. We need to create
-			   p', the term pattern, which binds all the 
+			   p', the term pattern, which binds all the
 			   variables; Util.patternT2O does this. *)
 			fn (N, ctxo) => let val p' = Util.patternT2O p in
 				sc (LLam' (p', N), patUnbind (p', ctxo)) end)
@@ -300,7 +300,7 @@ and matchAtom' (ctx, P, sc) =
 	      | matchCtx ((x, (A, hds), SOME modality)::G, k) =
 		if #2 (List.hd hds) <> HdAtom(aP) andalso List.tl hds = nil
 		then matchCtx (G, k+1)
-		else 
+		else
 		let (* val ctx' = if modality=INT then ctx else removeHyp (ctx, k) *)
 		    val A' = TClos (A, Subst.shift k)
 		    val h = Var (modality, k)
@@ -325,18 +325,18 @@ and matchAtom' (ctx, P, sc) =
 	     (PermuteList.fromList (available @ map matchSig (getCandAtomic aP)))
 	end
 
-(* forwardStep : (lcontext * context) 
-      -> ((lcontext * context) * 
-          whatever it is that nbinds returns * 
+(* forwardStep : (lcontext * context)
+      -> ((lcontext * context) *
+          whatever it is that nbinds returns *
           (pattern * pattern's type * atomicterm)) option *)
-and forwardStep (l, ctx) = 
-let 
-   fun mlFocus (ctx', lr, A, h) = 
+and forwardStep (l, ctx) =
+let
+   fun mlFocus (ctx', lr, A, h) =
       fn commitExn =>
        ( traceLeftFocus (h, A)
-       ; monLeftFocus (lr, ctx', A, 
+       ; monLeftFocus (lr, ctx', A,
                        fn (S, sty, ctxo) =>
-                          if !allowConstr orelse 
+                          if !allowConstr orelse
                              Unify.constrsSolvable (Atomic' (h, S))
                           then raise commitExn ((h, S), sty, ctxo)
                           else () ) )
@@ -358,47 +358,47 @@ let
    fun matchCtx ([], _) = []
      | matchCtx ((_, _, NONE)::G, k) = matchCtx (G, k+1)
      | matchCtx ((x, (A, hds), SOME modality)::G, k) =
-       let 
+       let
           val ctx' = if modality=INT then ctx else #2 $ removeHyp (([], ctx), k)
           val A' = TClos (A, Subst.shift k)
        in List.mapPartial
              (fn (_, HdAtom _) => NONE
-               | (lr, HdMonad) => 
+               | (lr, HdMonad) =>
                     SOME (fn () =>
-                             BackTrack.backtrackC 
+                             BackTrack.backtrackC
                                 (mlFocus (ctx', lr, A', Var (modality, k)))))
-             hds 
+             hds
           @ matchCtx (G, k+1)
        end
 
-   val candidates1 = matchCtx (ctx2list $ ctx, 1) 
+   val candidates1 = matchCtx (ctx2list $ ctx, 1)
    val candidates2 = map matchSig (getCandMonad ())
    val candidates = candidates1 @ candidates2
 
-   val () = 
+   val () =
       if !debugForwardChaining
-      then 
+      then
        (* using #trace this context-printing is maybe no longer needed? *)
-       (*print "Context: " 
+       (*print "Context: "
        ; printCtx (l, ctx) *)
        ( print (Int.toString (length candidates) ^ " candidates")
-       ; if (length candidates1 > 0) 
-         then print (", " ^ Int.toString (length candidates2) 
+       ; if (length candidates1 > 0)
+         then print (", " ^ Int.toString (length candidates2)
                      ^ " from the context. <press ENTER to continue>")
          else print (". <press ENTER to continue>")
        ; TextIO.flushOut TextIO.stdOut
        ; ignore (TextIO.inputLine TextIO.stdIn))
       else ()
 
-in case PermuteList.findSome (fn f => f ()) 
-           (PermuteList.fromList candidates) of 
+in case PermuteList.findSome (fn f => f ())
+           (PermuteList.fromList candidates) of
       NONE => NONE
-    | SOME (N, sty, ctxm) => 
-      let 
+    | SOME (N, sty, ctxm) =>
+      let
          val p = syncType2pat sty
          val p' = Util.patternT2O p
-      in 
-         SOME ((pBind (p, sty) $ linIntersect (l, ctxm)), 
+      in
+         SOME ((pBind (p, sty) $ linIntersect (l, ctxm)),
                nbinds p,
                (p', sty, N))
       end
@@ -407,31 +407,31 @@ end
 
 (* forwardChain : int * (lcontext * context) * syncType * (expObj * context -> unit) -> unit *)
 and forwardChain (fcLim, ctx, S, sc) =
- ( if !traceSolve >= 2 
+ ( if !traceSolve >= 2
    then print ("ForwardChain ("^PrettyPrint.printType (TMonad' S)^")\n")
    else ()
  ; forwardChain' (fcLim, ctx, S, sc) )
 
 and forwardChain' (fcLim, (l, ctx), S, sc) =
 let in
-   if fcLim = SOME 0 
+   if fcLim = SOME 0
    then rightFocus ((l, ctx), genMon (ctx, NONE, S), S,
                     fn (M, ctxo) => sc (Mon' M, ctxo))
-   else 
-     (case forwardStep (l, ctx) of 
+   else
+     (case forwardStep (l, ctx) of
          NONE => rightFocus ((l, ctx), genMon (ctx, NONE, S), S,
                              fn (M, ctxo) => sc (Mon' M, ctxo))
-       | SOME (newctx, newbinds, (p, sty, N)) => 
-         let 
-            val () = if !traceSolve >= 1 
+       | SOME (newctx, newbinds, (p, sty, N)) =>
+         let
+            val () = if !traceSolve >= 1
                      then print ("Committing:\n   let {_} = "
                                  ^PrettyPrint.printObj (Atomic' N)
-                                 ^" : {"^PrettyPrint.printSyncType sty^"}\n") 
+                                 ^" : {"^PrettyPrint.printSyncType sty^"}\n")
                      else ()
          in forwardChain' (Option.map (fn x => x - 1) fcLim,
                            newctx,
                            STClos (S, Subst.shift $ newbinds),
-                           fn (E, ctxo) => 
+                           fn (E, ctxo) =>
                               sc (Let' (p, N, E), patUnbind (p, ctxo)))
          end)
 end
@@ -520,7 +520,7 @@ let
       case forwardStep context of
            NONE => (count, context)
          | SOME (context', _, _) => loop context' (count+1)
-  val (count, context') = 
+  val (count, context') =
    loop (pBind (syncType2pat sty, sty) ([], Context.emptyCtx)) 0
   (* Print the context *)
   val (ctxStrings, ctxNames) = ctxToString context'
@@ -532,29 +532,29 @@ in
 end
 
 (* TODO print initial context, here or in TypeRecon *)
-fun trace limit sty = 
+fun trace limit sty =
 let
-   fun loop context count = 
+   fun loop context count =
      if limit = SOME count then (count, context) else
-          case forwardStep context of 
+          case forwardStep context of
               NONE => (count, context)
-            | SOME (context', _, (pat, pat_type, atomic_term)) => 
+            | SOME (context', _, (pat, pat_type, atomic_term)) =>
                 (* Print out the epsilon *)
                 let
                   val (ctxStrings, ctxNames) = ctxToString context'
                   (* Chris & Rob printing out extra information
                    * trying to get the actual epsilon instead of the types
-                   * (Added in 9ccfb8c8143b4f0f429322f913cb1cdfffd1eab5, 
+                   * (Added in 9ccfb8c8143b4f0f429322f913cb1cdfffd1eab5,
                    * removed July 25, 2013. -rjs)
                   val () = print "\nPATTERN TYPE:\n"
                   val () = print (PrettyPrint.printSyncType pat_type)
                   val () = print "\nAtomic term:\n"
-                  val () = print 
+                  val () = print
                     (PrettyPrint.printPreObjInCtx ctxNames
                        (Syntax.Atomic' atomic_term))
                   val () = print "\n"
                   *)
-                  val () = print "-- "
+                  val () = print "\n\n "
                   val () = layout 3 ctxStrings
                   (* Complementary to printing out extra infomration
                    * trying to get the actual epsilon instead of the types -rjs

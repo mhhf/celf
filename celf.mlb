@@ -31,6 +31,8 @@ RemDepend.sml
 Table.sig
 RedBlackTree.fun
 Table.sml
+BuildInNumbers.sig
+BuildInNumbers.sml
 PrettyPrint.sig
 PrettyPrint.sml
 GFPrint.sml

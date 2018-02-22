@@ -22,6 +22,7 @@ structure PrettyPrint :> PRETTYPRINT =
 struct
 
 open Syntax
+open Signatur
 
 structure RAList = RandomAccessList
 structure ST = StringRedBlackTree
@@ -88,13 +89,19 @@ and pType ctx pa ty = if isUnknown ty then ["???"] else case AsyncType.prj ty of
 			end)
 	| AddProd (A, B) => paren pa (pType ctx true A @ [" & "] @ pType ctx true B)
 	| TMonad S => ["{"] @ pSyncType ctx false S @ ["}"]
-	| TAtomic (a, S) => [a] @  pTypeSpineSkip ctx S (getImplLength a)
 	| TAbbrev (a, ty) => [a]
-and pTypeSpineSkip ctx sp n = if n=0 then pTypeSpine ctx sp else case TypeSpine.prj sp of
-	  TNil => raise Fail "Internal error: pTypeSpineSkip"
-	| TApp (N, S) =>
-		(if !printImpl then [" <"] @ pObj ctx false N @ [">"] else [])
-		@ pTypeSpineSkip ctx S (n-1)
+	| TAtomic (a, S) =>
+      (* if BuildInNumbers.atomIsNumber a then ["NUMBER"] else *)
+      [a] @  pTypeSpineSkip ctx S (getImplLength a)
+and pTypeSpineSkip ctx sp n =
+  if n=0 then
+    pTypeSpine ctx sp
+  else
+    case TypeSpine.prj sp of
+      TNil => raise Fail "Internal error: pTypeSpineSkip"
+    | TApp (N, S) =>
+    (if !printImpl then [" <"] @ pObj ctx false N @ [">"] else [])
+    @ pTypeSpineSkip ctx S (n-1)
 and pTypeSpine ctx sp = case TypeSpine.prj sp of
 	  TNil => []
 	| TApp (N, S) => [" "] @ pObj ctx true N @ pTypeSpine ctx S
@@ -113,7 +120,8 @@ and pSyncType ctx pa sty = case SyncType.prj sty of
 	| TDown A => pType ctx pa A
 	| TAffi A => ["@"] @ pType ctx true A
 	| TBang A => ["!"] @ pType ctx true A
-and pObj ctx pa ob = case SOME (Obj.prj ob) handle Subst.ExnUndef => NONE of
+and pObj ctx pa ob =
+  case SOME (Obj.prj ob) handle Subst.ExnUndef => NONE of
 	  NONE => ["_"]
 	| SOME ob => case ob of
 	  LLam (p, N) =>
@@ -121,12 +129,25 @@ and pObj ctx pa ob = case SOME (Obj.prj ob) handle Subst.ExnUndef => NONE of
 			in paren pa (["\\"] @ pP @ [". "] @ pObj ctx' false N) end
 	| AddPair (N1, N2) => ["<"] @ pObj ctx false N1 @ [", "] @ pObj ctx false N2 @ [">"]
 	| Monad E => ["{"] @ pExp ctx E @ ["}"]
+(* XXX here we print atomic objects
+ * Find a way how to check the type of the object and print it along *)
 	| Atomic (H, S) =>
-			let val skip = case H of Const c => getImplLength c | _ => 0
-			in case (pHead ctx H, pSpineSkip ctx S skip) of
-				  (h, []) => h
-				| (h, s) => paren pa (h @ s)
-			end
+      let
+        val skip =
+          case H of
+              Const c => getImplLength c
+            | _ => 0
+        val rTermType =
+          case H of
+              Const c => (c, String.concat (pType ctx false (Signatur.sigLookupType c)))
+            | _ => ("?", "?")
+        val isBuildin = BuildInNumbers.atomIsNumber rTermType
+      in
+        if isBuildin then [BuildInNumbers.formatNumber (Obj.inj ob)] else
+        case (pHead ctx H, pSpineSkip ctx S skip) of
+            (h, []) => h
+          | (h, s) => paren pa (h @ s)
+      end
 	| Redex (N, _, S) =>
 			(fn [] => pObj ctx pa N | s => paren pa (pObj ctx true N @ s)) (pSpine ctx S)
 	| Constraint (N, A) => pObj ctx pa N
@@ -213,7 +234,7 @@ val printMonadObj = String.concat o (pMonadObj [] false)
 
 fun printPreType ty = ( noSkip := true; printType ty before noSkip := false )
 fun printPreObj ob = ( noSkip := true; printObj ob before noSkip := false )
-fun printPreObjInCtx ctx ob = 
+fun printPreObjInCtx ctx ob =
   ( noSkip := true; printObjInCtx ctx ob before noSkip := false )
 
 
