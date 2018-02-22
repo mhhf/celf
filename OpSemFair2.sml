@@ -554,7 +554,7 @@ let
                        (Syntax.Atomic' atomic_term))
                   val () = print "\n"
                   *)
-                  val () = print "\n\n "
+                  val () = print "-- "
                   val () = layout 3 ctxStrings
                   (* Complementary to printing out extra infomration
                    * trying to get the actual epsilon instead of the types -rjs
